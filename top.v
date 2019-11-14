@@ -69,43 +69,46 @@ integer clk_counter;
           move_direction = 3;
         end
       end
+      else begin
+      move_direction = move_direction;
+      end
 end
 always @(posedge clk) begin
 clk_counter <= clk_counter + 1;
-if (~reset) begin
-  bodyPositionX[0] <= 2;
-  bodyPositionY[0] <= 2;
-  bodyPositionX[1] <= 3;
-  bodyPositionX[1] <= 2;
-  bodyPositionX[2] <= 4;
-  bodyPositionY[2] <= 2;
-  bodyPositionX[3] <= 5;
-  bodyPositionY[3] <= 2;
-
-  bodyMap[0] <= 0;
-  bodyMap[1] <= 0;
-  bodyMap[2] <= 0;
-  bodyMap[3] <= 0;
-  bodyMap[4] <= 0;
-  bodyMap[5] <= 0;
-  bodyMap[6] <= 0;
-  bodyMap[7] <= 0;
-  bodyMap[8] <= 0;
-  bodyMap[9] <= 0;
-  bodyMap[10] <= 0;
-  bodyMap[11] <= 0;
-  bodyMap[12] <= 0;
-  bodyMap[13] <= 0;
-
-  bodyMap[2][3] <= 1;
-  bodyMap[2][4] <= 1;
-  bodyMap[2][5] <= 1;
-
-  headPosition <= 3;
-  tailPosition <= 0;
-end
-else if (clk_counter == 8000000) begin
+ if (clk_counter == 8000000) begin
  clk_counter <= 0;
+ if (~reset) begin
+   bodyPositionX[0] <= 2;
+   bodyPositionY[0] <= 2;
+   bodyPositionX[1] <= 3;
+   bodyPositionX[1] <= 2;
+   bodyPositionX[2] <= 4;
+   bodyPositionY[2] <= 2;
+   bodyPositionX[3] <= 5;
+   bodyPositionY[3] <= 2;
+
+   bodyMap[0] <= 0;
+   bodyMap[1] <= 0;
+   bodyMap[2] <= 0;
+   bodyMap[3] <= 0;
+   bodyMap[4] <= 0;
+   bodyMap[5] <= 0;
+   bodyMap[6] <= 0;
+   bodyMap[7] <= 0;
+   bodyMap[8] <= 0;
+   bodyMap[9] <= 0;
+   bodyMap[10] <= 0;
+   bodyMap[11] <= 0;
+   bodyMap[12] <= 0;
+   bodyMap[13] <= 0;
+
+   bodyMap[2][3] <= 1;
+   bodyMap[2][4] <= 1;
+   bodyMap[2][5] <= 1;
+
+   headPosition <= 3;
+   tailPosition <= 0;
+ end
 	if (move_direction == 0) begin //Left
     bodyPositionX[headPosition + 1] <= bodyPositionX[headPosition] - 1;
     bodyPositionY[headPosition + 1] <= bodyPositionY[headPosition];
