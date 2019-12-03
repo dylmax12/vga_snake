@@ -1,52 +1,51 @@
-//typical hvsync_generator found in VGA projects using FPGAs
-//handles the syncing of the resolution of the monitor size with the drawing size
-//also handles which RGB pixels to draw when within the display area
+//Written by  Magnus Karlsson
+module VGA_gen(VGA_clk, xCount, yCount, displayArea, VGA_hSync, VGA_vSync);
 
-module hvsync_generator(clk, vga_h_sync, vga_v_sync, inDisplayArea, CounterX, CounterY);
+  input VGA_clk;
+  output reg [9:0]xCount, yCount;
+  output reg displayArea;
+  output VGA_hSync, VGA_vSync;
 
-//input clock of the frequency of drawing ofr the 640 x 480, 60 Hz screen
-input clk;
+  reg p_hSync, p_vSync;
 
-//output syncs that handle the porches and blanking of a display
-output vga_h_sync, vga_v_sync;
+	integer porchHF = 510; //start of horizntal front porch
+  integer syncH = 526;//start of horizontal sync
+  integer porchHB = 622; //start of horizontal back porch
+  integer maxH = 665; //total length of line.
 
-//a value to compute when the pixel drawn is within the monitor area
-output inDisplayArea;
+	integer porchVF = 480; //start of vertical front porch
+   integer syncV = 490; //start of vertical sync
+   integer porchVB = 492; //start of vertical back porch
+   integer maxV = 525; //total rows.
+  always@(posedge VGA_clk)
+  begin
+     if(xCount == maxH)
+      xCount <= 0;
+    else
+      xCount <= xCount + 1;
+  end
+  always@(posedge VGA_clk)
+  begin
+    if(xCount == maxH)
+    begin
+      if(yCount == maxV)
+        yCount <= 0;
+      else
+      yCount <= yCount + 1;
+    end
+  end
 
-//a counter for which index/position is being drawn
-output [9:0] CounterX;
-output [8:0] CounterY;
+  always@(posedge VGA_clk)
+  begin
+    displayArea <= ((xCount < porchHF) && (yCount < porchVF));
+  end
 
-//the counter is an internal register
-reg [9:0] CounterX;
-reg [8:0] CounterY;
+  always@(posedge VGA_clk)
+  begin
+    p_hSync <= ((xCount >= syncH) && (xCount < porchHB));
+    p_vSync <= ((yCount >= syncV) && (yCount < porchVB));
+  end
 
-wire CounterXmaxed = (CounterX == 10'h2FF);//767
-
-always @(posedge clk)
-if(CounterXmaxed)
-	CounterX <= 0;
-else
-	CounterX <= CounterX + 1;
-
-always @(posedge clk)
-if(CounterXmaxed) CounterY <= CounterY + 1;
-
-reg	vga_HS, vga_VS;
-always @(posedge clk)
-begin
-	vga_HS <= (CounterX[9:4] == 6'h2D); //checks at 720 change this value to move the display horizontally
-	vga_VS <= (CounterY == 500); // change this value to move the display vertically
-end
-
-reg inDisplayArea;
-always @(posedge clk)
-if(inDisplayArea==0)
-	inDisplayArea <= (CounterXmaxed) && (CounterY<480);
-else
-	inDisplayArea <= !(CounterX==480);
-
-assign vga_h_sync = ~vga_HS;
-assign vga_v_sync = ~vga_VS;
-
+  assign VGA_vSync = ~p_vSync;
+  assign VGA_hSync = ~p_hSync;
 endmodule

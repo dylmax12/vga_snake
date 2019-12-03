@@ -12,6 +12,9 @@ output vga_h_sync, vga_v_sync, vga_R, vga_G, vga_B;
 //input pin values from the 4 buttons (left, up, right, down) and reset input
 input btn1, btn2, btn3, btn4, reset;
 
+reg game_over;
+reg game_win;
+integer size;
 //USB Pull Up resistor, when set to 0 it disconnects the MicroUSB
 //note: this is on bottom of board
 output USBPU;
@@ -41,13 +44,11 @@ SB_PLL40_CORE #(
                 .PLLOUTCORE(clk_25)       //output of PLL clock
                 );
 
-
 wire inDisplayArea;
 wire [9:0] counterX;
 wire [9:0] counterY;
 
-hvsync_generator syncgen(.clk(clk_25), .vga_h_sync(vga_h_sync), .vga_v_sync(vga_v_sync),
-  .inDisplayArea(inDisplayArea), .CounterX(counterX), .CounterY(counterY));
+VGA_gen vgen(.VGA_clk(clk_25), .xCount(counterX), .yCount(counterY),. displayArea(inDisplayArea), .VGA_hSync(vga_h_sync), .VGA_vSync(vga_v_sync));
 
 //////////////////////////////////////////////////////////////////
 //section for directional input
@@ -106,17 +107,21 @@ reg [3:0] tailPosition;
 reg [3:0] applePositionX;
 reg [3:0] applePositionY;
 
+reg [3:0] tempAppleY;
+reg [3:0] tempAppleX;
+
 //a counter for a clock divider
 //can hold up to 8,388,608
 reg [22:0] clk_counter;
 
+//reg resetFlag;
 
 always @(posedge clk_16) begin
   //increment the counter by one to scale the clock
   clk_counter <= clk_counter + 1;
 
-  //run the snake logic every 1/4 of a second
-  if (clk_counter == 4000000) begin
+  //run the snake logic every 1/4 of a second .3 s
+  if (clk_counter == 4500000) begin
 
     //reset the counter for future iterations
     clk_counter <= 0;
@@ -151,6 +156,7 @@ always @(posedge clk_16) begin
       bodyMap[11] <= 0;
       bodyMap[12] <= 0;
       bodyMap[13] <= 0;
+      bodyMap[14] <= 0;
 
       //assign which snake blocks are visible
       bodyMap[2][3] <= 1;
@@ -162,24 +168,33 @@ always @(posedge clk_16) begin
       tailPosition <= 0;
 
       //place the apple somewhere
-      applePositionX <= 8;
-      applePositionY <= 8;
+      applePositionX <= 0;
+      applePositionY <= 0;
+
+      game_over <= 1'b0;
+      game_win <= 1'b0;
+      size = 3;
     end
     else begin
+
     //check for the next snake direction and move accordingly
       if (move_direction == 0) begin //left
+      //  game_over <= (bodyPositionX[headPosition] - 1) == 0 || bodyMap[bodyPositionY[headPosition]][bodyPositionX[headPosition] - 1];
         bodyPositionX[headPosition + 1] <= bodyPositionX[headPosition] - 1;
         bodyPositionY[headPosition + 1] <= bodyPositionY[headPosition];
       end
       else if (move_direction == 1) begin //up
+      //  game_over <= (bodyPositionY[headPosition] - 1) == 0 || bodyMap[bodyPositionY[headPosition] - 1][bodyPositionX[headPosition]];
         bodyPositionX[headPosition + 1] <= bodyPositionX[headPosition];
         bodyPositionY[headPosition + 1] <= bodyPositionY[headPosition] - 1;
       end
       else if (move_direction == 2) begin //right
+        //= (bodyPositionX[headPosition] + 1) == 15 || bodyMap[bodyPositionY[headPosition]][bodyPositionX[headPosition] + 1];
         bodyPositionX[headPosition + 1] <= bodyPositionX[headPosition] + 1;
         bodyPositionY[headPosition + 1] <= bodyPositionY[headPosition];
       end
       else if (move_direction == 3) begin //down
+        //game_over <= (bodyPositionY[headPosition] + 1) == 15 || bodyMap[bodyPositionY[headPosition] + 1][bodyPositionX[headPosition]];
         bodyPositionX[headPosition + 1] <= bodyPositionX[headPosition];
         bodyPositionY[headPosition + 1] <= bodyPositionY[headPosition] + 1;
       end
@@ -188,20 +203,77 @@ always @(posedge clk_16) begin
       headPosition <= headPosition + 1;
       bodyMap[bodyPositionY[headPosition]][bodyPositionX[headPosition]] <= 1;
 
+
       //if the head interconnects an apple then move the apple
       if (bodyPositionX[headPosition] == applePositionX && bodyPositionY[headPosition] == applePositionY) begin
-        applePositionX <= applePositionX + 2;
-        applePositionY <= applePositionY + 2;
-      end
+        applePositionX <= (applePositionX + randomNumber[3:0]);// == 0 ? randomNumber[3:0] : (applePositionX + randomNumber[3:0]) == 15 ? randomNumber[3:0] : applePositionX + randomNumber[3:0];
+        applePositionY <= (applePositionY + randomNumber[4:1]);// == 0 ? randomNumber[4:1] : (applePositionY + randomNumber[4:1]) == 15 ? randomNumber[4:1] : applePositionY + randomNumber[4:1];
+        size = size + 1; //size for win conditions
+        end
       else begin
         //if the head doesn't connect then move the tail
         bodyMap[bodyPositionY[tailPosition]][bodyPositionX[tailPosition]] <= 0;
         tailPosition <= tailPosition + 1;
       end
 
+      //////////////////////////////////////////////////////////////////
+      //section for game ending situations
+      //////////////////////////////////////////////////////////////////
+
+      //wall collision -- player runs into a wall
+      if (bodyPositionX[headPosition] == 0 || bodyPositionX[headPosition] == 15 || bodyPositionY[headPosition] == 0 || bodyPositionY[headPosition] == 14) begin
+        game_over <= 1'b1;
+      end
+
+      //player collison conditions -- play collides with self
+      //when player is moving right and runs into tail/body
+      if ((move_direction == 0) && (bodyMap[bodyPositionY[headPosition]][bodyPositionX[headPosition] - 1])) begin
+          game_over <= 1'b1;
+      end
+
+      //when player is moving up and runs into tail/body
+      if ((move_direction == 1) && (bodyMap[bodyPositionY[headPosition] - 1][bodyPositionX[headPosition]])) begin
+          game_over <= 1'b1;
+      end
+
+      //when player is moving right and runs into tail/body
+      if ((move_direction == 2) && (bodyMap[bodyPositionY[headPosition]][bodyPositionX[headPosition] + 1])) begin
+          game_over <= 1'b1;
+      end
+
+      //when player is moving down and runs into tail/body
+      if ((move_direction == 3) && (bodyMap[bodyPositionY[headPosition] + 1][bodyPositionX[headPosition]])) begin
+          game_over <= 1'b1;
+      end
+
+      //win condition -- play has reached max snake length
+      if (size == 15) begin
+        game_win <= 1'b1;
+      end
+
+      //////////////////////////////////////////////////////////////////
+      //section for apple mechanics
+      //////////////////////////////////////////////////////////////////
+
+      //if apple spawns into outside of game boundaries -- respawn the apple
+      if (applePositionX > 14 || applePositionX < 1 || applePositionY > 13 || applePositionY < 1) begin
+        applePositionX <= (applePositionX + randomNumber[3:0]);
+        applePositionY <= (applePositionY + randomNumber[4:1]);
+      end
+
+      //if apple spawns into the player -- respawn apple_gfx
+      // if (applePositionX == bodyMap[bodyPositionX[headPosition]][bodyPositionX[tailPosition]] || applePositionY == bodyMap[bodyPositionY[headPosition]][bodyPositionY[tailPosition]]) begin
+      //   applePositionX <= (applePositionX + randomNumber[3:0]);
+      // end
+
     end//end not reset
   end//end counter
 end//end always
+
+integer randomNumber;
+always @(posedge clk_25) begin
+  randomNumber <= randomNumber + 1;
+end
 
 //////////////////////////////////////////////////////////////////
 //section for graphical output
@@ -211,14 +283,14 @@ end//end always
 //output the apple if the position lines up
 wire apple_gfx = counterX[8:5] == applePositionX && counterY[8:5] == applePositionY;
 //output the border if it is on the sides of the screen
-wire border_gfx = (counterX[8:5] == 0) || (counterX[8:5] == 15) || (counterY[8:5] == 0) || (counterY[8:5] == 15);
+wire border_gfx = (counterX[8:5] == 0) || (counterX[8:5] == 15) || (counterY[8:5] == 0) || (counterY[8:5] == 14);
 //output the snake if the bodymap indicates there is a body part there
 wire snake_gfx = bodyMap[counterY[8:5]][counterX[8:5]];
 
 //mapping for colors of the output to show
-wire R = border_gfx || apple_gfx;
-wire G = snake_gfx;
-wire B = border_gfx;
+wire R = (game_over || apple_gfx) && ~game_win;
+wire G = (snake_gfx || game_win) && ~game_over;
+wire B =  border_gfx && ~game_over && ~game_win;
 
 //registers (also the outputs) of the vga to change with the clock
 reg vga_R, vga_G, vga_B;
@@ -228,6 +300,5 @@ always @(posedge clk_25) begin
 	vga_R <= R & inDisplayArea;
 	vga_G <= G & inDisplayArea;
 	vga_B <= B & inDisplayArea;
-end
-
+  end
 endmodule
